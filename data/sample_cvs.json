@@ -1,0 +1,87 @@
+[
+  {
+    "id": "CV001",
+    "name": "Ahmed Ben Salah",
+    "title": "Senior Full-Stack Developer",
+    "email": "ahmed.bensalah@example.com",
+    "years_experience": 8,
+    "skills": [
+      "Python", "Java", "AWS", "Docker", "PostgreSQL",
+      "REST API", "Microservices", "Agile/Scrum", "React", "Node.js"
+    ],
+    "certifications": ["AWS Certified Solutions Architect", "PMP"],
+    "summary": "Senior full-stack developer with 8 years of experience in enterprise application development. Expert in cloud-native architectures using AWS, microservices with Docker and Kubernetes. Led multiple ERP implementation projects for government clients.",
+    "experience": [
+      {
+        "role": "Lead Developer",
+        "company": "Inetum Tunisia",
+        "start": "2020-01",
+        "end": "Present",
+        "description": "Led a team of 6 developers building a cloud-based ERP system for the Ministry of Finance. Used Python/Django backend with React frontend, deployed on AWS ECS."
+      },
+      {
+        "role": "Full-Stack Developer",
+        "company": "Sofrecom",
+        "start": "2016-06",
+        "end": "2019-12",
+        "description": "Developed REST APIs and microservices for telecom billing systems. Implemented CI/CD pipelines using Jenkins."
+      }
+    ],
+    "languages": ["Arabic", "French", "English"],
+    "availability": "Available"
+  },
+  {
+    "id": "CV002",
+    "name": "Sarah Dubois",
+    "title": "AI/ML Engineer",
+    "email": "sarah.dubois@example.com",
+    "years_experience": 5,
+    "skills": [
+      "Python", "TensorFlow", "NLP", "Rasa", "Docker",
+      "Kubernetes", "Machine Learning", "REST API",
+      "Dialogflow", "GDPR Compliance"
+    ],
+    "certifications": [
+      "Google Cloud Professional ML Engineer",
+      "TensorFlow Developer Certificate"
+    ],
+    "summary": "AI/ML engineer specializing in Natural Language Processing and conversational AI. Built production chatbots for banking and insurance clients across Europe. Strong expertise in Rasa and Dialogflow. GDPR-compliant data processing experience.",
+    "experience": [
+      {
+        "role": "AI Engineer",
+        "company": "Inetum France",
+        "start": "2021-03",
+        "end": "Present",
+        "description": "Designed and deployed NLP-powered chatbot handling 50K+ monthly conversations for a major French bank. Integrated with Salesforce CRM. Achieved 85% automation rate."
+      }
+    ],
+    "languages": ["French", "English", "German"],
+    "availability": "Available"
+  },
+  {
+    "id": "CV003",
+    "name": "Mohamed Trabelsi",
+    "title": "Cybersecurity Consultant",
+    "email": "m.trabelsi@example.com",
+    "years_experience": 10,
+    "skills": [
+      "Cybersecurity", "Penetration Testing", "OWASP",
+      "Network Security", "ISO 27001", "SIEM",
+      "Kali Linux", "Metasploit", "Nmap",
+      "Vulnerability Assessment", "Report Writing"
+    ],
+    "certifications": ["CISSP", "CEH", "OSCP", "ISO 27001 Lead Auditor"],
+    "summary": "Senior cybersecurity consultant with 10 years of experience in security audits, penetration testing, and compliance assessments. Conducted 50+ security audits for international organizations including UN agencies and European banks.",
+    "experience": [
+      {
+        "role": "Senior Security Consultant",
+        "company": "Deloitte",
+        "start": "2019-06",
+        "end": "Present",
+        "description": "Lead penetration testing and security audit engagements for Fortune 500 clients. Managed a team of 4 security analysts."
+      }
+    ],
+    "languages": ["Arabic", "French", "English"],
+    "availability": "Available"
+  }
+]

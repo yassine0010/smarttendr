@@ -1,0 +1,57 @@
+[
+  {
+    "id": "T001",
+    "title": "Development of a Cloud-Based ERP System",
+    "platform": "TUNEPS",
+    "published_date": "2025-01-15",
+    "deadline": "2025-02-28",
+    "budget": "500,000 TND",
+    "description": "The Ministry of Digital Economy is seeking proposals for the development and deployment of a cloud-based Enterprise Resource Planning (ERP) system. The solution must support HR management, financial accounting, procurement workflows, and inventory management. The system should be built using microservices architecture, deployed on AWS or Azure, and support Arabic and French languages. Experience with Odoo or SAP is preferred.",
+    "required_skills": [
+      "Python", "Java", "Cloud Computing", "AWS", "Azure",
+      "ERP", "Odoo", "SAP", "Microservices", "Docker",
+      "PostgreSQL", "REST API", "Agile/Scrum"
+    ],
+    "required_certifications": ["AWS Certified", "PMP", "ITIL"],
+    "min_experience_years": 5,
+    "category": "IT Services",
+    "location": "Tunis, Tunisia"
+  },
+  {
+    "id": "T002",
+    "title": "AI-Powered Customer Service Chatbot",
+    "platform": "TED Europa",
+    "published_date": "2025-01-20",
+    "deadline": "2025-03-15",
+    "budget": "200,000 EUR",
+    "description": "Design and implement an AI-powered chatbot for a European banking institution. The chatbot must handle customer inquiries in English, French, and German. It should integrate with the existing CRM system (Salesforce), support natural language understanding, and provide 24/7 automated support with human escalation capabilities. GDPR compliance required.",
+    "required_skills": [
+      "NLP", "Python", "TensorFlow", "Rasa", "Dialogflow",
+      "Salesforce API", "REST API", "GDPR Compliance",
+      "Machine Learning", "Docker", "Kubernetes"
+    ],
+    "required_certifications": ["Google Cloud AI", "Salesforce Certified"],
+    "min_experience_years": 3,
+    "category": "AI/Machine Learning",
+    "location": "Brussels, Belgium"
+  },
+  {
+    "id": "T003",
+    "title": "Cybersecurity Audit and Penetration Testing",
+    "platform": "UNGM",
+    "published_date": "2025-02-01",
+    "deadline": "2025-03-01",
+    "budget": "150,000 USD",
+    "description": "Conduct a comprehensive cybersecurity audit and penetration testing for a United Nations agency. The scope includes network security assessment, web application testing, social engineering tests, and vulnerability management. ISO 27001 compliance required.",
+    "required_skills": [
+      "Cybersecurity", "Penetration Testing", "OWASP",
+      "Network Security", "ISO 27001", "SIEM",
+      "Vulnerability Assessment", "Kali Linux", "Nmap",
+      "Metasploit", "Report Writing"
+    ],
+    "required_certifications": ["CISSP", "CEH", "OSCP", "ISO 27001 Lead Auditor"],
+    "min_experience_years": 7,
+    "category": "Cybersecurity",
+    "location": "Geneva, Switzerland"
+  }
+]
