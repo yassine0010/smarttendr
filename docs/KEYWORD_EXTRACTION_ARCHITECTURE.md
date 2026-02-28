@@ -6,9 +6,9 @@
 
 ## Overview
 
-The NLP module takes raw tender text and extracts structured fields using spaCy NER + TF-IDF. It runs in-process (no external services, no database). Output is an `ExtractionResult` dataclass.
+The NLP module takes raw tender text and extracts structured fields using spaCy NER + TF-IDF. It supports **multilingual tenders** (French, Arabic, English, 50+ languages) via automatic language detection and language-specific spaCy models. It runs in-process (no external services, no database). Output is an `ExtractionResult` dataclass.
 
-**Total: 1,893 lines across 5 files.**
+**Total: ~2,100 lines across 5 files.**
 
 ---
 
@@ -35,7 +35,12 @@ extractor.extract(text, title="...")
     Unicode normalize, strip HTML, fix OCR, normalize whitespace
     │
     ▼  cleaned string
-[2] nlp(cleaned)                    ← spaCy en_core_web_sm
+[1.5] _detect_language(cleaned)     ← langdetect
+    Auto-detect language from first 1000 chars
+    fr → fr_core_news_sm | en → en_core_web_sm | ar/other → en fallback
+    │
+    ▼  language code ("en", "fr", "ar", ...)
+[2] nlp_model(cleaned)              ← spaCy (language-specific model)
     Tokenization, POS tagging, NER, dependency parsing
     │
     ▼  spaCy Doc object
@@ -89,6 +94,7 @@ extractor.extract(text, title="...")
   "all_dates": ["March 15, 2026"],
   "certifications": ["ISO 27001", "PMP"],
   "meta": {
+    "detected_language": "fr",
     "processing_time_ms": 27.7,
     "text_length": 450,
     "sentence_count": 5
@@ -233,12 +239,12 @@ All dictionaries are flat (O(1) lookup). Lowercase keys.
 
 | Dictionary | Type | Count | Purpose |
 |-----------|------|-------|---------|
-| `DOMAIN_TAXONOMY` | `Dict[str, str]` | 100+ entries | keyword → domain label |
+| `DOMAIN_TAXONOMY` | `Dict[str, str]` | 175+ entries | keyword → domain label (EN + FR + AR) |
 | `SKILL_PATTERNS` | `List[Tuple[str,str,str]]` | 90+ entries | (canonical_name, category, regex) |
 | `SKILL_CATEGORIES_WEIGHT` | `Dict[str, float]` | 13 categories | category → weight (0.5–1.0) |
-| `CURRENCY_MAP` | `Dict[str, str]` | 25 entries | symbol/code → ISO currency |
-| `DEADLINE_SIGNALS` | `List[str]` | 20+ phrases | EN + FR + AR signal words |
-| `TENDER_STOPWORDS` | `FrozenSet[str]` | 50+ words | EN + FR procurement noise words |
+| `CURRENCY_MAP` | `Dict[str, str]` | 35+ entries | symbol/code/word → ISO currency |
+| `DEADLINE_SIGNALS` | `List[str]` | 25+ phrases | EN + FR + AR signal words |
+| `TENDER_STOPWORDS` | `FrozenSet[str]` | 80+ words | EN + FR + AR procurement noise words |
 
 ### Skill categories and weights:
 ```
@@ -251,8 +257,12 @@ Methodology          0.70    Operating System 0.60
 Other                0.50
 ```
 
-### Domain taxonomy coverage:
+### Domain taxonomy coverage (15 domains × 3 languages):
 IT Services, Cloud Computing, ERP, AI/Machine Learning, Data Analytics, Cybersecurity, Construction, Healthcare, Energy, Telecommunications, Education & Training, Consulting, Supply & Logistics, Finance, Environment.
+
+**French keywords (60+):** informatique, logiciel, cybersécurité, transformation numérique, progiciel de gestion, intelligence artificielle, énergie, bâtiment, santé, formation, etc.
+
+**Arabic keywords (15+):** تكنولوجيا المعلومات, الذكاء الاصطناعي, أمن المعلومات, أشغال, بناء, صحة, طاقة, تعليم, تزويد, مياه, etc.
 
 ---
 
@@ -271,10 +281,12 @@ IT Services, Cloud Computing, ERP, AI/Machine Learning, Data Analytics, Cybersec
 
 | Metric | Value |
 |--------|-------|
-| Average per tender | ~18ms |
-| spaCy model size | 15MB (en_core_web_sm) |
+| Average per tender | ~16ms |
+| spaCy models loaded | en_core_web_sm (15MB) + fr_core_news_sm (15MB) |
+| Language detection | langdetect (first 1000 chars, <1ms) |
 | Max input length | 50,000 chars |
 | spaCy max_length | 200,000 tokens |
+| Languages detected in real data | fr=17, de=6, ar=4, en=4, + 14 others (45 tenders) |
 
 ---
 
@@ -282,12 +294,15 @@ IT Services, Cloud Computing, ERP, AI/Machine Learning, Data Analytics, Cybersec
 
 | Feature | Status |
 |---------|--------|
+| Multilingual NER (French model) | ✅ fr_core_news_sm loaded alongside English |
+| Language detection (50+ languages) | ✅ langdetect auto-detects per tender |
+| French/Arabic domain taxonomy | ✅ 75+ multilingual keywords added |
 | Database storage of extracted fields | ❌ Results stay in memory / JSON |
 | Alert notifications (email, Slack) | ❌ Not implemented |
-| Fine-tuned spaCy model | ❌ Uses stock `en_core_web_sm` |
+| Fine-tuned spaCy model | ❌ Uses stock models (en/fr) |
 | Custom NER training for SKILL entities | ❌ Uses regex patterns only |
+| Dedicated Arabic spaCy model | ❌ Uses English fallback + taxonomy matching |
 | SBERT for keyword extraction | ❌ SBERT is only in relevance scoring |
-| Multilingual NER (French/Arabic models) | ❌ English model only |
 | Async / batch spaCy.pipe() | ❌ Sequential processing |
 
 ---
@@ -296,6 +311,8 @@ IT Services, Cloud Computing, ERP, AI/Machine Learning, Data Analytics, Cybersec
 
 | Library | Used for |
 |---------|----------|
-| `spacy` (en_core_web_sm) | Tokenization, NER, lemmatization, sentence splitting |
+| `spacy` (en_core_web_sm) | English tokenization, NER, lemmatization, sentence splitting |
+| `spacy` (fr_core_news_sm) | French tokenization, NER, lemmatization |
+| `langdetect` | Automatic language detection (50+ languages) |
 | `scikit-learn` | `TfidfVectorizer` for keyword extraction |
 | `numpy` | TF-IDF score aggregation (`mean`, `argsort`) |
