@@ -64,9 +64,50 @@ class SimilarityEngine:
 
     # Default weight allocation for hybrid score components
     DEFAULT_WEIGHTS = {
-        "semantic": 0.45,       # SBERT cosine similarity
-        "skill_overlap": 0.35,  # Jaccard-style skill matching
-        "domain_match": 0.20,   # Domain alignment bonus
+        "semantic": 0.30,       # SBERT cosine similarity
+        "skill_overlap": 0.25,  # Skill matching
+        "domain_match": 0.20,   # Domain alignment
+        "keyword_signal": 0.25, # IT keyword detection bonus
+    }
+
+    # Universal IT keywords that appear across languages
+    # (technology names are not translated)
+    IT_KEYWORDS = {
+        # Technologies
+        "python", "java", "javascript", ".net", "c#", "c++", "php", "ruby",
+        "typescript", "golang", "rust", "scala", "kotlin", "swift",
+        # Frameworks
+        "react", "angular", "vue", "django", "spring", "node.js", "fastapi",
+        "flask", "laravel", "express", "nextjs", "next.js",
+        # Cloud & DevOps
+        "aws", "azure", "gcp", "docker", "kubernetes", "k8s", "terraform",
+        "ansible", "jenkins", "ci/cd", "devops", "cloud", "saas", "paas", "iaas",
+        # Data
+        "sql", "nosql", "postgresql", "mysql", "mongodb", "oracle", "redis",
+        "elasticsearch", "hadoop", "spark", "kafka", "etl", "power bi", "tableau",
+        # ERP
+        "sap", "odoo", "dynamics 365", "salesforce", "erp", "crm",
+        # AI/ML
+        "machine learning", "deep learning", "tensorflow", "pytorch",
+        "nlp", "chatbot", "computer vision", "data science",
+        # Security
+        "cybersecurity", "penetration testing", "siem", "soc", "iso 27001",
+        "firewall", "encryption", "gdpr",
+        # General IT terms (appear in all languages)
+        "api", "rest", "microservices", "agile", "scrum",
+        "software", "it", "digital", "ict",
+        # French IT terms
+        "informatique", "logiciel", "numérique", "progiciel",
+        "cybersécurité", "développement",
+        # German IT terms
+        "softwareentwicklung", "it-dienstleistungen", "digitalisierung",
+        "informationstechnologie", "datenbank",
+        # Dutch IT terms
+        "software", "informatica", "digitale", "ict-diensten",
+        # Polish IT terms
+        "oprogramowanie", "informatyczny", "cyfrowy",
+        # Romanian IT terms
+        "informatică", "software", "digitală",
     }
 
     def __init__(
@@ -86,11 +127,11 @@ class SimilarityEngine:
         self.model_name = model_name
         self.weights = weights or self.DEFAULT_WEIGHTS.copy()
 
-        # Validate weights sum to 1.0
+        # Validate weights sum to 1.0 (4 components now)
         total = sum(self.weights.values())
-        if abs(total - 1.0) > 0.01:
+        if abs(total - 1.0) > 0.02:
             raise ValueError(
-                f"Weights must sum to 1.0, got {total}: {self.weights}"
+                f"Weights must sum to ~1.0, got {total}: {self.weights}"
             )
 
         # Load SBERT model (expensive — done once)
@@ -292,6 +333,8 @@ class SimilarityEngine:
         Returns:
             (overlap_score, matched_skills, missing_skills)
         """
+        import re
+
         # Collect tender skills from multiple possible fields
         tender_skills_raw = (
             tender.get("detected_skills", [])
@@ -299,13 +342,49 @@ class SimilarityEngine:
         )
         tender_skills = {s.lower().strip() for s in tender_skills_raw if s}
 
+        # Mine skills directly from title+description text
+        # Tech terms like Python, SAP, AWS are universal across languages
+        text_blob = (
+            (tender.get("title", "") + " " + tender.get("description", ""))
+            .lower()
+        )
+
+        # Short skills (<=3 chars) need word-boundary matching to avoid false positives
+        # Longer skills can use substring matching safely
+        for skill in profile.skill_set:
+            if len(skill) <= 3:
+                # Word boundary for short terms (sql, nlp, aws, etc.)
+                if re.search(r'\b' + re.escape(skill) + r'\b', text_blob):
+                    tender_skills.add(skill)
+            elif len(skill) <= 5:
+                # Word boundary for medium terms (react, redis, etc.)
+                if re.search(r'\b' + re.escape(skill) + r'\b', text_blob):
+                    tender_skills.add(skill)
+            else:
+                # Substring OK for longer terms (kubernetes, postgresql, etc.)
+                if skill in text_blob:
+                    tender_skills.add(skill)
+
         if not tender_skills:
-            return 0.5, [], []  # Neutral if no skills specified
+            # If no skills detectable, check if this looks like an IT tender
+            # via keyword signal. If so, give a positive score instead of neutral.
+            text_blob_check = (
+                (tender.get("title", "") + " " + tender.get("description", ""))
+                .lower()
+            )
+            it_hits = sum(1 for kw in self.IT_KEYWORDS if kw in text_blob_check)
+            if it_hits >= 3:
+                return 0.70, [], []  # Likely IT tender, positive signal
+            elif it_hits >= 1:
+                return 0.60, [], []  # Some IT signal
+            return 0.5, [], []  # Truly neutral
 
         matched = tender_skills & profile.skill_set
         missing = tender_skills - profile.skill_set
 
-        overlap = len(matched) / len(tender_skills)
+        # Score: how many of the company's skills are mentioned
+        # Normalized by total skills found (favors tenders where we match most)
+        overlap = len(matched) / max(len(tender_skills), 1)
 
         return (
             round(overlap, 4),
@@ -386,18 +465,45 @@ class SimilarityEngine:
             tender_embedding, profile
         )
 
+        # Component 4: IT keyword signal (language-agnostic)
+        keyword_score = self._compute_keyword_signal(tender)
+
         # Weighted combination
+        w = self.weights
         final = (
-            self.weights["semantic"] * semantic_sim
-            + self.weights["skill_overlap"] * skill_score
-            + self.weights["domain_match"] * domain_sim
+            w.get("semantic", 0.35) * semantic_sim
+            + w.get("skill_overlap", 0.30) * skill_score
+            + w.get("domain_match", 0.15) * domain_sim
+            + w.get("keyword_signal", 0.20) * keyword_score
         )
+
+        # Domain confidence boost: if the best matching domain is one of
+        # the company's core domains AND domain_sim > threshold, apply a boost
+        # This rewards tenders that clearly fall in our expertise
+        if best_domain in ("IT Services", "Cloud Computing", "ERP",
+                           "AI/Machine Learning", "Cybersecurity",
+                           "Data Analytics", "Digital Transformation"):
+            if domain_sim > 0.45:
+                boost = 0.10  # +10% for strong domain alignment
+                final = min(1.0, final + boost)
+            elif domain_sim > 0.35:
+                boost = 0.06  # +6% for moderate domain alignment
+                final = min(1.0, final + boost)
+            elif domain_sim > 0.25:
+                boost = 0.03  # +3% for weak domain alignment
+                final = min(1.0, final + boost)
+
+        # Keyword density boost: if many IT keywords found, tender is
+        # strongly IT-related even if semantic similarity is moderate
+        if keyword_score > 0.6:
+            final = min(1.0, final + 0.05)  # +5% for keyword-rich IT tenders
 
         return {
             "final_score": round(float(final), 4),
             "semantic_similarity": round(float(semantic_sim), 4),
             "skill_overlap": round(float(skill_score), 4),
             "domain_similarity": round(float(domain_sim), 4),
+            "keyword_signal": round(float(keyword_score), 4),
             "best_matching_domain": best_domain,
             "matched_skills": matched,
             "missing_skills": missing,
@@ -437,6 +543,44 @@ class SimilarityEngine:
             results.append(score)
 
         return results
+
+    # ============================================================
+    # KEYWORD SIGNAL
+    # ============================================================
+
+    def _compute_keyword_signal(
+        self,
+        tender: Dict,
+    ) -> float:
+        """
+        Language-agnostic IT keyword detection.
+
+        Scans title + description for universal IT terms (technology
+        names, frameworks, cloud providers) that are NOT translated
+        across languages. This compensates for cross-lingual
+        embedding degradation.
+
+        Returns:
+            Score in [0, 1]. 0 = no IT keywords, 1 = many IT keywords.
+        """
+        text = (
+            (tender.get("title", "") + " " + tender.get("description", ""))
+            .lower()
+        )
+        if not text.strip():
+            return 0.0
+
+        hits = 0
+        for kw in self.IT_KEYWORDS:
+            if kw in text:
+                hits += 1
+
+        # Sigmoid-like scaling: diminishing returns after 5 hits
+        # 1 hit → 0.30, 2 → 0.50, 3 → 0.65, 5 → 0.80, 8+ → 0.95
+        if hits == 0:
+            return 0.0
+        score = 1.0 - (1.0 / (1.0 + 0.4 * hits))
+        return min(1.0, round(score, 4))
 
     # ============================================================
     # INTERNAL

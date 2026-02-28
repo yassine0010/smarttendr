@@ -28,12 +28,28 @@ import numpy as np
 DEFAULT_PROFILE_DATA: Dict = {
     "name": "Inetum Tunisie",
     "description": (
+        # English
         "Inetum is a leading IT services company specializing in "
         "digital transformation, cloud computing, ERP implementation, "
         "AI/ML solutions, custom software development, cybersecurity, "
         "and IT consulting. We operate across Europe, Africa, and the "
         "Middle East with expertise in Python, Java, AWS, Azure, SAP, "
-        "Odoo, data analytics, and agile project management."
+        "Odoo, data analytics, and agile project management. "
+        # French (for cross-lingual SBERT matching with FR/BE/LU tenders)
+        "Inetum est une entreprise leader en services informatiques, "
+        "spécialisée dans la transformation numérique, le cloud computing, "
+        "l'implémentation ERP, les solutions d'intelligence artificielle, "
+        "le développement logiciel sur mesure, la cybersécurité et le conseil IT. "
+        "Nous intervenons en Europe, Afrique et Moyen-Orient avec des compétences "
+        "en Python, Java, AWS, Azure, SAP, Odoo, analyse de données et gestion de projet agile. "
+        # German (for DE/AT/CH tenders on TED Europa)
+        "Inetum ist ein führendes IT-Dienstleistungsunternehmen mit Schwerpunkt "
+        "auf digitale Transformation, Cloud Computing, ERP-Implementierung, "
+        "KI/ML-Lösungen, Softwareentwicklung, Cybersicherheit und IT-Beratung. "
+        # Spanish (for ES/LATAM tenders)
+        "Inetum es una empresa líder en servicios de TI especializada en "
+        "transformación digital, computación en la nube, implementación ERP, "
+        "soluciones de IA, desarrollo de software, ciberseguridad y consultoría TI."
     ),
     "domains": {
         "IT Services": {
@@ -41,7 +57,10 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Custom software development, system integration, "
                 "web and mobile application development, IT consulting, "
-                "technical support and managed services."
+                "technical support and managed services. "
+                "Développement logiciel, intégration de systèmes, "
+                "applications web et mobiles, conseil informatique. "
+                "Softwareentwicklung, Systemintegration, IT-Beratung, IT-Dienstleistungen."
             ),
         },
         "Cloud Computing": {
@@ -49,7 +68,9 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Cloud migration, cloud-native development, AWS, Azure, "
                 "GCP, infrastructure as code, DevOps, Docker, Kubernetes, "
-                "serverless architectures, SaaS platform development."
+                "serverless architectures, SaaS platform development. "
+                "Migration cloud, développement cloud-native, infrastructure as code. "
+                "Cloud-Migration, Cloud-Infrastruktur, DevOps."
             ),
         },
         "ERP": {
@@ -57,7 +78,9 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Enterprise resource planning implementation, SAP, Odoo, "
                 "Dynamics 365, ERP customization, ERP migration, "
-                "financial and HR modules, procurement workflows."
+                "financial and HR modules, procurement workflows. "
+                "Mise en œuvre ERP, personnalisation SAP, progiciel de gestion intégrée. "
+                "ERP-Implementierung, SAP-Beratung, Unternehmenssoftware."
             ),
         },
         "AI/Machine Learning": {
@@ -65,7 +88,10 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Artificial intelligence solutions, machine learning models, "
                 "natural language processing, chatbots, computer vision, "
-                "data science, predictive analytics, deep learning."
+                "data science, predictive analytics, deep learning. "
+                "Intelligence artificielle, apprentissage automatique, "
+                "traitement du langage naturel, science des données. "
+                "Künstliche Intelligenz, maschinelles Lernen, Datenwissenschaft."
             ),
         },
         "Cybersecurity": {
@@ -73,7 +99,9 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Security audits, penetration testing, vulnerability assessment, "
                 "SIEM, SOC, ISO 27001 compliance, GDPR, information security "
-                "consulting, incident response."
+                "consulting, incident response. "
+                "Audit de sécurité, test d'intrusion, cybersécurité, conformité RGPD. "
+                "Sicherheitsaudit, Penetrationstest, Cybersicherheit, IT-Sicherheit."
             ),
         },
         "Data Analytics": {
@@ -81,7 +109,9 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Business intelligence, data warehousing, reporting dashboards, "
                 "ETL pipelines, big data processing, data visualization, "
-                "Power BI, Tableau, data governance."
+                "Power BI, Tableau, data governance. "
+                "Informatique décisionnelle, entrepôt de données, tableaux de bord. "
+                "Business Intelligence, Datenanalyse, Berichtswesen."
             ),
         },
         "Digital Transformation": {
@@ -89,7 +119,10 @@ DEFAULT_PROFILE_DATA: Dict = {
             "description": (
                 "Digital strategy consulting, process digitization, "
                 "legacy modernization, e-government solutions, "
-                "change management, agile transformation."
+                "change management, agile transformation. "
+                "Conseil en stratégie numérique, modernisation des systèmes, "
+                "administration électronique. "
+                "Digitale Strategie, Prozessdigitalisierung, E-Government."
             ),
         },
     },

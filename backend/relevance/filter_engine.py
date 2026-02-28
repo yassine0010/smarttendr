@@ -4,10 +4,10 @@ SmartTender AI — Relevance Filtering Engine
 Orchestrates similarity computation to produce a final
 RELEVANT / LOW_RELEVANCE / IRRELEVANT decision per tender.
 
-Decision thresholds:
-    score ≥ 0.65  →  RELEVANT          (pursue)
-    0.40 ≤ score < 0.65  →  LOW_RELEVANCE  (review)
-    score < 0.40  →  IRRELEVANT         (skip)
+Decision thresholds (tuned for multilingual / cross-lingual scoring):
+    score ≥ 0.55  →  RELEVANT          (pursue)
+    0.30 ≤ score < 0.55  →  LOW_RELEVANCE  (review)
+    score < 0.30  →  IRRELEVANT         (skip)
 
 These defaults are configurable and can be tuned via the
 calibration module.
@@ -155,9 +155,9 @@ class RelevanceFilter:
     Thread-safe for read-only operations after init.
     """
 
-    # Default thresholds
-    DEFAULT_RELEVANT_THRESHOLD = 0.65
-    DEFAULT_LOW_RELEVANCE_THRESHOLD = 0.40
+    # Default thresholds (tuned for multilingual cross-lingual scoring)
+    DEFAULT_RELEVANT_THRESHOLD = 0.55
+    DEFAULT_LOW_RELEVANCE_THRESHOLD = 0.30
 
     def __init__(
         self,
@@ -345,9 +345,9 @@ class RelevanceFilter:
         """
         Apply threshold logic.
 
-            score ≥ 0.65           → RELEVANT
-            0.40 ≤ score < 0.65   → LOW_RELEVANCE
-            score < 0.40           → IRRELEVANT
+            score ≥ 0.55           → RELEVANT
+            0.30 ≤ score < 0.55   → LOW_RELEVANCE
+            score < 0.30           → IRRELEVANT
         """
         if score >= self.relevant_threshold:
             return FilterDecision.RELEVANT

@@ -57,8 +57,8 @@ keyword_extractor = KeywordExtractor(model_name="en_core_web_sm", top_keywords=3
 print("[Module 1] Loading relevance filter (multilingual SBERT + company profile)...")
 relevance_filter = RelevanceFilter(
     profile=CompanyProfile.default(),
-    relevant_threshold=0.65,
-    low_relevance_threshold=0.40,
+    relevant_threshold=0.55,
+    low_relevance_threshold=0.30,
     model_name="paraphrase-multilingual-MiniLM-L12-v2",
 )
 
@@ -85,8 +85,8 @@ class TenderDetector:
     def __init__(
         self,
         company_profile: Optional[CompanyProfile] = None,
-        threshold: float = 0.65,
-        low_threshold: float = 0.40,
+        threshold: float = 0.55,
+        low_threshold: float = 0.30,
     ):
         """
         Initialize the TenderDetector.
