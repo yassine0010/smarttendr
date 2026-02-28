@@ -164,7 +164,7 @@ class RelevanceFilter:
         profile: Optional[CompanyProfile] = None,
         relevant_threshold: float = DEFAULT_RELEVANT_THRESHOLD,
         low_relevance_threshold: float = DEFAULT_LOW_RELEVANCE_THRESHOLD,
-        model_name: str = "all-MiniLM-L6-v2",
+        model_name: str = "paraphrase-multilingual-MiniLM-L12-v2",
         weights: Optional[Dict[str, float]] = None,
     ):
         """

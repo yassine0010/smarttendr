@@ -49,6 +49,12 @@ from typing import Any, Dict, List, Optional
 import spacy
 from spacy.tokens import Doc
 
+try:
+    from langdetect import detect as _langdetect
+    HAS_LANGDETECT = True
+except ImportError:
+    HAS_LANGDETECT = False
+
 from backend.nlp.preprocessing import (
     preprocess_text,
     lemmatize,
@@ -107,6 +113,7 @@ class ExtractionResult:
     certifications: List[str] = field(default_factory=list)
 
     # ── Metadata ──
+    detected_language: str = "en"            # ISO 639-1 code (en, fr, ar)
     processing_time_ms: float = 0.0
     text_length: int = 0
     sentence_count: int = 0
@@ -131,6 +138,7 @@ class ExtractionResult:
             "all_dates": self.all_dates,
             "certifications": self.certifications,
             "meta": {
+                "detected_language": self.detected_language,
                 "processing_time_ms": round(self.processing_time_ms, 1),
                 "text_length": self.text_length,
                 "sentence_count": self.sentence_count,
@@ -166,6 +174,12 @@ class KeywordExtractor:
         fix_ocr:      Apply OCR noise repair during preprocessing.
     """
 
+    # Supported languages → spaCy model mapping
+    LANG_MODELS = {
+        "en": "en_core_web_sm",
+        "fr": "fr_core_news_sm",
+    }
+
     def __init__(
         self,
         model_name: str = "en_core_web_sm",
@@ -175,19 +189,57 @@ class KeywordExtractor:
         self.top_keywords = top_keywords
         self.fix_ocr = fix_ocr
 
-        # Load spaCy model (expensive — do it once)
-        try:
-            self.nlp = spacy.load(model_name)
-        except OSError:
-            import subprocess
-            subprocess.run(
-                ["python", "-m", "spacy", "download", model_name],
-                check=True,
-            )
-            self.nlp = spacy.load(model_name)
+        # Load spaCy models: English (always) + French (if available)
+        self._models: Dict[str, spacy.language.Language] = {}
+        for lang, mname in self.LANG_MODELS.items():
+            try:
+                nlp_model = spacy.load(mname)
+                nlp_model.max_length = 200_000
+                self._models[lang] = nlp_model
+            except OSError:
+                if lang == "en":
+                    # English is mandatory — try to install
+                    import subprocess
+                    subprocess.run(
+                        ["python", "-m", "spacy", "download", mname],
+                        check=True,
+                    )
+                    nlp_model = spacy.load(mname)
+                    nlp_model.max_length = 200_000
+                    self._models[lang] = nlp_model
+                # French/others: silently skip if not installed
 
-        # Increase max doc length for large tenders
-        self.nlp.max_length = 200_000
+        # Default model reference (backward compat)
+        self.nlp = self._models.get("en", list(self._models.values())[0])
+
+    def _detect_language(self, text: str) -> str:
+        """
+        Detect text language using langdetect.
+
+        Returns ISO 639-1 code: 'en', 'fr', 'ar', etc.
+        Falls back to 'en' on any error.
+        """
+        if not HAS_LANGDETECT or not text or len(text.strip()) < 20:
+            return "en"
+        try:
+            lang = _langdetect(text[:1000])  # sample first 1000 chars
+            return lang
+        except Exception:
+            return "en"
+
+    def _get_nlp_for_lang(self, lang: str) -> spacy.language.Language:
+        """
+        Get the best spaCy model for the detected language.
+
+        - 'en' → en_core_web_sm
+        - 'fr' → fr_core_news_sm (if installed)
+        - 'ar' or others → fallback to English (regex still works)
+        """
+        if lang in self._models:
+            return self._models[lang]
+        # Arabic and other unsupported languages: use English model
+        # (skill regex patterns still match, TF-IDF still works on tokens)
+        return self.nlp
 
     # ============================================================
     # PUBLIC: Single document extraction
@@ -220,8 +272,12 @@ class KeywordExtractor:
         if not cleaned:
             return ExtractionResult(processing_time_ms=0, text_length=0)
 
-        # ── Stage 2: spaCy processing ──
-        doc = self.nlp(cleaned)
+        # ── Stage 1.5: Language Detection ──
+        detected_lang = self._detect_language(cleaned)
+        nlp_model = self._get_nlp_for_lang(detected_lang)
+
+        # ── Stage 2: spaCy processing (language-appropriate model) ──
+        doc = nlp_model(cleaned)
 
         # ── Stage 3: NER extraction ──
         ner_result: NERResult = extract_entities(doc, raw_text=cleaned)
@@ -258,6 +314,7 @@ class KeywordExtractor:
 
         # Metadata
         elapsed = (time.perf_counter() - start) * 1000
+        result.detected_language = detected_lang
         result.processing_time_ms = elapsed
         result.text_length = len(cleaned)
         result.sentence_count = len(sentences)

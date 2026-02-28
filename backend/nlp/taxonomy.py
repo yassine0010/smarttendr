@@ -137,6 +137,123 @@ DOMAIN_TAXONOMY: Dict[str, str] = {
     "water treatment": "Environment",
     "pollution": "Environment",
     "sustainability": "Environment",
+
+    # ── FRENCH DOMAIN KEYWORDS ──
+    # IT & Software
+    "logiciel": "IT Services",
+    "développement logiciel": "IT Services",
+    "informatique": "IT Services",
+    "services informatiques": "IT Services",
+    "développement web": "IT Services",
+    "application mobile": "IT Services",
+    "transformation numérique": "IT Services",
+    "transformation digitale": "IT Services",
+    "intégration système": "IT Services",
+    "système d'information": "IT Services",
+    "base de données": "IT Services",
+    "infrastructure informatique": "IT Services",
+    "numérique": "IT Services",
+    # Cloud
+    "cloud": "Cloud Computing",
+    "infonuagique": "Cloud Computing",
+    "hébergement cloud": "Cloud Computing",
+    # ERP
+    "progiciel de gestion": "ERP",
+    "progiciel": "ERP",
+    "gestion intégrée": "ERP",
+    # AI & Data
+    "intelligence artificielle": "AI/Machine Learning",
+    "apprentissage automatique": "AI/Machine Learning",
+    "traitement du langage naturel": "AI/Machine Learning",
+    "science des données": "AI/Machine Learning",
+    "analyse de données": "Data Analytics",
+    "tableau de bord": "Data Analytics",
+    "entrepôt de données": "Data Analytics",
+    # Cybersecurity
+    "cybersécurité": "Cybersecurity",
+    "sécurité informatique": "Cybersecurity",
+    "audit de sécurité": "Cybersecurity",
+    "test d'intrusion": "Cybersecurity",
+    "test de pénétration": "Cybersecurity",
+    "sécurité des systèmes": "Cybersecurity",
+    # Construction
+    "construction": "Construction",
+    "bâtiment": "Construction",
+    "génie civil": "Construction",
+    "travaux publics": "Construction",
+    "rénovation": "Construction",
+    "étanchéité": "Construction",
+    "clôture": "Construction",
+    # Healthcare
+    "santé": "Healthcare",
+    "médical": "Healthcare",
+    "hôpital": "Healthcare",
+    "pharmaceutique": "Healthcare",
+    "laboratoire": "Healthcare",
+    # Energy
+    "énergie": "Energy",
+    "énergie solaire": "Energy",
+    "énergie renouvelable": "Energy",
+    "électricité": "Energy",
+    "pétrole": "Energy",
+    # Telecommunications
+    "télécommunications": "Telecommunications",
+    "télécom": "Telecommunications",
+    "fibre optique": "Telecommunications",
+    "réseau": "Telecommunications",
+    # Education
+    "éducation": "Education & Training",
+    "formation": "Education & Training",
+    "enseignement": "Education & Training",
+    "e-learning": "Education & Training",
+    "université": "Education & Training",
+    "examen": "Education & Training",
+    "diplôme": "Education & Training",
+    # Consulting
+    "conseil": "Consulting",
+    "étude de faisabilité": "Consulting",
+    "assistance technique": "Consulting",
+    "maîtrise d'ouvrage": "Consulting",
+    # Supply & Logistics
+    "logistique": "Supply & Logistics",
+    "approvisionnement": "Supply & Logistics",
+    "chaîne d'approvisionnement": "Supply & Logistics",
+    "transport": "Supply & Logistics",
+    "acquisition": "Supply & Logistics",
+    "fourniture": "Supply & Logistics",
+    "matériel roulant": "Supply & Logistics",
+    # Finance
+    "financier": "Finance",
+    "comptabilité": "Finance",
+    "audit": "Finance",
+    "assurance": "Finance",
+    # Environment
+    "environnement": "Environment",
+    "gestion des déchets": "Environment",
+    "traitement des eaux": "Environment",
+    "eau potable": "Environment",
+    "développement durable": "Environment",
+
+    # ── ARABIC DOMAIN KEYWORDS ──
+    "تكنولوجيا المعلومات": "IT Services",
+    "خدمات معلوماتية": "IT Services",
+    "تطوير البرمجيات": "IT Services",
+    "التحول الرقمي": "IT Services",
+    "حوسبة سحابية": "Cloud Computing",
+    "الذكاء الاصطناعي": "AI/Machine Learning",
+    "أمن المعلومات": "Cybersecurity",
+    "الأمن السيبراني": "Cybersecurity",
+    "أشغال": "Construction",
+    "بناء": "Construction",
+    "صحة": "Healthcare",
+    "طاقة": "Energy",
+    "تعليم": "Education & Training",
+    "تكوين": "Education & Training",
+    "نقل": "Supply & Logistics",
+    "تزويد": "Supply & Logistics",
+    "ماء": "Environment",
+    "الماء الصالح للشرب": "Environment",
+    "بيئة": "Environment",
 }
 
 
@@ -322,6 +439,16 @@ CURRENCY_MAP: Dict[str, str] = {
     "egp": "EGP",
     "xof": "XOF",
     "xaf": "XAF",
+    # French terms
+    "euros": "EUR",
+    "euro": "EUR",
+    "dinars tunisiens": "TND",
+    "dinar tunisien": "TND",
+    "millimes": "TND",
+    "dirhams": "MAD",
+    "dirham": "MAD",
+    "francs": "XOF",
+    "franc cfa": "XOF",
 }
 
 
@@ -347,10 +474,20 @@ DEADLINE_SIGNALS: List[str] = [
     "applications close",
     "tender closing",
     "expiry date",
-    "date limite",          # French
-    "date de clôture",      # French
-    "délai de soumission",  # French
-    "تاريخ الإغلاق",         # Arabic
+    # French
+    "date limite",
+    "date de clôture",
+    "délai de soumission",
+    "date limite de réception",
+    "date limite de remise",
+    "ouverture des plis",
+    "avant le",
+    "au plus tard le",
+    # Arabic
+    "تاريخ الإغلاق",
+    "آخر أجل",
+    "تاريخ الانتهاء",
+    "الموعد النهائي",
 ]
 
 
@@ -370,5 +507,17 @@ TENDER_STOPWORDS: FrozenSet[str] = frozenset({
     "shall", "must", "may", "should", "will", "required",
     "provide", "submit", "ensure", "include", "comply",
     "accordance", "pursuant", "reference", "regard",
-    "appel", "offre", "marché", "soumission", "fournisseur",  # French
+    # French procurement stopwords
+    "appel", "offre", "marché", "soumission", "fournisseur",
+    "cahier", "charges", "cahier des charges", "lot", "lots",
+    "prestation", "prestations", "objet", "titulaire",
+    "montant", "doit", "peut", "sera", "sont", "dans", "pour",
+    "avec", "des", "les", "une", "par", "sur", "aux", "cette",
+    "tout", "tous", "toute", "toutes", "entre", "selon",
+    "conformément", "relatif", "relative", "concernant",
+    "acquisition", "fourniture", "travaux",
+    # Arabic procurement stopwords
+    "عرض", "مناقصة", "عقد", "شراء", "توريد",
+    "من", "في", "على", "إلى", "عن", "مع",
+    "هذا", "هذه", "التي", "الذي", "التى",
 })

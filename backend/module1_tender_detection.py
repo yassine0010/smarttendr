@@ -53,12 +53,12 @@ except OSError:
 keyword_extractor = KeywordExtractor(model_name="en_core_web_sm", top_keywords=30)
 
 # Initialize relevance filter (loads SBERT model + precomputes profile embeddings)
-print("[Module 1] Loading relevance filter (SBERT + company profile)...")
+print("[Module 1] Loading relevance filter (multilingual SBERT + company profile)...")
 relevance_filter = RelevanceFilter(
     profile=CompanyProfile.default(),
     relevant_threshold=0.65,
     low_relevance_threshold=0.40,
-    model_name="all-MiniLM-L6-v2",
+    model_name="paraphrase-multilingual-MiniLM-L12-v2",
 )
 print("[Module 1] Models loaded successfully!")
 
