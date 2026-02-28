@@ -30,6 +30,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from scraping.pipeline import ScrapingPipeline
 from scraping.base import NormalizedTender
+from nlp.keyword_extraction import KeywordExtractor, ExtractionResult
 
 # ================================================================
 # LOAD NLP MODELS
@@ -47,6 +48,9 @@ except OSError:
 
 # Load Sentence-BERT for semantic embeddings
 sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+# Initialize keyword extraction pipeline (reuses the same spaCy model)
+keyword_extractor = KeywordExtractor(model_name="en_core_web_sm", top_keywords=30)
 print("[Module 1] Models loaded successfully!")
 
 
@@ -110,89 +114,32 @@ class TenderDetector:
         )
 
     # ============================================================
-    # KEYWORD EXTRACTION
+    # KEYWORD EXTRACTION (powered by NLP pipeline)
     # ============================================================
     def extract_keywords(
         self,
         text: str,
-        top_n: int = 15
-    ) -> Dict[str, List[str]]:
+        title: str = "",
+        existing_metadata: Optional[Dict] = None,
+    ) -> ExtractionResult:
         """
-        Extract keywords from tender text using multiple NLP techniques.
+        Extract structured fields from tender text using the
+        production NLP pipeline (spaCy NER + TF-IDF + taxonomy).
 
         Args:
             text: The tender description text
-            top_n: Number of top keywords to extract
+            title: Tender title (provides NER context)
+            existing_metadata: Fallback fields from scraper
 
         Returns:
-            Dictionary containing:
-            - entities: Named entities (organizations, dates, etc.)
-            - noun_chunks: Noun phrases
-            - tfidf_keywords: TF-IDF extracted terms
-            - tech_skills: Technical skills (pattern-matched)
+            ExtractionResult with domain, skills, budget, deadline,
+            organization, location, and ranked keywords.
         """
-        doc = nlp(text)
-
-        # 1. Named Entity Recognition
-        entity_labels = ("ORG", "GPE", "MONEY", "DATE",
-                         "PRODUCT", "NORP", "FAC")
-        entities = list(set([
-            ent.text.strip()
-            for ent in doc.ents
-            if ent.label_ in entity_labels and len(ent.text.strip()) > 2
-        ]))
-
-        # 2. Noun Chunks (noun phrases)
-        chunks = list(set([
-            chunk.text.strip().lower()
-            for chunk in doc.noun_chunks
-            if len(chunk.text.strip()) > 2 and len(chunk.text.split()) <= 4
-        ]))[:20]
-
-        # 3. TF-IDF Keywords
-        sentences = [
-            sent.text for sent in doc.sents
-            if len(sent.text.strip()) > 10
-        ]
-        tfidf_keywords = []
-        if sentences:
-            try:
-                tfidf = TfidfVectorizer(
-                    stop_words="english",
-                    max_features=top_n,
-                    ngram_range=(1, 2),
-                    min_df=1
-                )
-                tfidf.fit_transform(sentences)
-                tfidf_keywords = tfidf.get_feature_names_out().tolist()
-            except ValueError:
-                pass  # Handle empty vocabulary
-
-        # 4. Technical Skills (Pattern-Based)
-        tech_patterns = [
-            r'\b(Python|Java|JavaScript|TypeScript|C\+\+|C#|Go|Rust|Ruby|PHP)\b',
-            r'\b(React|Angular|Vue\.js|Node\.js|Django|Flask|Spring|Laravel)\b',
-            r'\b(AWS|Azure|GCP|Google Cloud|Docker|Kubernetes|K8s|Terraform)\b',
-            r'\b(PostgreSQL|MySQL|MongoDB|Redis|Elasticsearch|Oracle|SQL Server)\b',
-            r'\b(SAP|Odoo|Salesforce|ServiceNow|Dynamics)\b',
-            r'\b(NLP|ML|AI|TensorFlow|PyTorch|Scikit-learn|Deep Learning)\b',
-            r'\b(REST\s*API|GraphQL|Microservices|CI/CD|DevOps|MLOps)\b',
-            r'\b(Agile|Scrum|Kanban|PMP|ITIL|PRINCE2|Jira)\b',
-            r'\b(ISO\s*27001|GDPR|OWASP|CISSP|CEH|SOC2|HIPAA)\b',
-            r'\b(Linux|Windows Server|Unix|Shell|Bash|PowerShell)\b',
-        ]
-        tech_skills = []
-        for pattern in tech_patterns:
-            matches = re.findall(pattern, text, re.IGNORECASE)
-            tech_skills.extend([m.strip() for m in matches])
-        tech_skills = list(set(tech_skills))
-
-        return {
-            "entities": entities,
-            "noun_chunks": chunks[:15],
-            "tfidf_keywords": tfidf_keywords,
-            "tech_skills": tech_skills
-        }
+        return keyword_extractor.extract(
+            text,
+            title=title,
+            existing_metadata=existing_metadata,
+        )
 
     # ============================================================
     # RELEVANCE SCORING
@@ -269,6 +216,11 @@ class TenderDetector:
         """
         Analyze a list of tenders and return ranked results.
 
+        Pipeline per tender:
+            1. NLP keyword extraction (spaCy NER + TF-IDF)
+            2. Relevance scoring (SBERT + skill overlap + domain match)
+            3. Merge extracted fields into structured result
+
         Args:
             tenders: List of tender dictionaries
 
@@ -281,22 +233,40 @@ class TenderDetector:
             # Compute relevance score
             score = self.compute_relevance(tender)
 
-            # Extract keywords
-            keywords = self.extract_keywords(
-                tender.get("description", "")
+            # Run NLP keyword extraction pipeline
+            existing_meta = {
+                "budget": tender.get("budget"),
+                "deadline": tender.get("deadline"),
+                "organization": tender.get("organization"),
+                "location": tender.get("location"),
+            }
+            extraction: ExtractionResult = self.extract_keywords(
+                tender.get("description", ""),
+                title=tender.get("title", ""),
+                existing_metadata=existing_meta,
             )
 
-            # Build result object
+            # Build result object merging relevance + extraction
             result = {
                 "id": tender.get("id", ""),
                 "title": tender.get("title", ""),
                 "platform": tender.get("platform", "Unknown"),
-                "deadline": tender.get("deadline", "N/A"),
-                "budget": tender.get("budget", "N/A"),
+                "deadline": extraction.deadline or tender.get("deadline", "N/A"),
+                "budget": extraction.budget or tender.get("budget", "N/A"),
+                "budget_amount": extraction.budget_amount,
+                "budget_currency": extraction.budget_currency,
                 "category": tender.get("category", "Unknown"),
                 "relevance_score": score,
                 "is_relevant": score >= (self.threshold * 100),
-                "extracted_keywords": keywords,
+                # NLP extraction results
+                "nlp_extraction": extraction.to_dict(),
+                "detected_domain": extraction.domain,
+                "detected_skills": [s["name"] for s in extraction.skills],
+                "detected_certifications": extraction.certifications,
+                "organization": extraction.organization or tender.get("organization", ""),
+                "location": extraction.location or tender.get("location", ""),
+                "top_keywords": [kw["term"] for kw in extraction.top_keywords[:10]],
+                # Legacy fields for backward compat
                 "required_skills": tender.get("required_skills", []),
                 "analysis_timestamp": str(np.datetime64('now'))
             }
@@ -452,8 +422,15 @@ if __name__ == "__main__":
         print(f"\n{icon} {r['title'][:65]}")
         print(f"   Score: {r['relevance_score']}% | Status: {status}")
         print(f"   Platform: {r['platform']} | Deadline: {r['deadline']}")
-        if r['extracted_keywords']['tech_skills']:
-            print(f"   Tech Skills Found: {', '.join(r['extracted_keywords']['tech_skills'][:5])}")
+        print(f"   Domain: {r.get('detected_domain', 'N/A')} | Budget: {r.get('budget', 'N/A')}")
+        if r.get('organization'):
+            print(f"   Organization: {r['organization']}")
+        if r.get('detected_skills'):
+            print(f"   Skills: {', '.join(r['detected_skills'][:8])}")
+        if r.get('detected_certifications'):
+            print(f"   Certifications: {', '.join(r['detected_certifications'][:5])}")
+        if r.get('top_keywords'):
+            print(f"   Keywords: {', '.join(r['top_keywords'][:6])}")
 
     print("\n" + "=" * 70)
     relevant_count = sum(1 for r in results if r["is_relevant"])
