@@ -34,6 +34,7 @@ from scraping.base import NormalizedTender
 from nlp.keyword_extraction import KeywordExtractor, ExtractionResult
 from relevance.filter_engine import RelevanceFilter, FilterResult, FilterDecision, FilterBatchResult
 from relevance.company_profile import CompanyProfile
+from relevance.strategic_evaluator import StrategicEvaluator, StrategicResult
 
 # ================================================================
 # LOAD NLP MODELS
@@ -60,6 +61,9 @@ relevance_filter = RelevanceFilter(
     low_relevance_threshold=0.40,
     model_name="paraphrase-multilingual-MiniLM-L12-v2",
 )
+
+# Initialize strategic evaluator (lightweight — no model loading)
+strategic_evaluator = StrategicEvaluator(profile=CompanyProfile.default())
 print("[Module 1] Models loaded successfully!")
 
 
@@ -102,11 +106,13 @@ class TenderDetector:
                 relevant_threshold=threshold,
                 low_relevance_threshold=low_threshold,
             )
+            self._evaluator = StrategicEvaluator(profile=company_profile)
         else:
             self._filter = relevance_filter
             self._filter.update_thresholds(
                 relevant=threshold, low_relevance=low_threshold
             )
+            self._evaluator = strategic_evaluator
 
     # ============================================================
     # KEYWORD EXTRACTION (powered by NLP pipeline)
@@ -204,7 +210,12 @@ class TenderDetector:
             # Compute relevance using the production filter
             filter_result: FilterResult = self.compute_relevance(enriched)
 
-            # Build result object merging relevance + extraction
+            # Compute strategic evaluation (additive layer)
+            strategic_result: StrategicResult = self._evaluator.evaluate(
+                enriched, filter_result
+            )
+
+            # Build result object merging relevance + extraction + strategic
             result = {
                 "id": tender.get("id", ""),
                 "title": tender.get("title", ""),
@@ -224,6 +235,15 @@ class TenderDetector:
                 "best_matching_domain": filter_result.best_matching_domain,
                 "matched_skills": filter_result.matched_skills,
                 "missing_skills": filter_result.missing_skills,
+                # Strategic evaluation results
+                "strategic_relevance_score": strategic_result.strategic_relevance_score,
+                "win_probability": strategic_result.win_probability,
+                "difficulty_level": str(strategic_result.difficulty_level),
+                "competition_intensity": str(strategic_result.competition_intensity),
+                "deadline_risk": str(strategic_result.deadline_risk),
+                "days_remaining": strategic_result.days_remaining,
+                "complexity_score": strategic_result.complexity_score,
+                "score_breakdown": strategic_result.score_breakdown,
                 # NLP extraction results
                 "nlp_extraction": extraction.to_dict(),
                 "detected_domain": extraction.domain,
@@ -396,6 +416,12 @@ if __name__ == "__main__":
         print(f"   Semantic: {r.get('semantic_similarity', 0):.3f} | "
               f"Skills: {r.get('skill_overlap', 0):.3f} | "
               f"Domain: {r.get('domain_similarity', 0):.3f}")
+        print(f"   Strategic: {r.get('strategic_relevance_score', 0)}% | "
+              f"Win Prob: {r.get('win_probability', 0)}% | "
+              f"Difficulty: {r.get('difficulty_level', 'N/A')}")
+        print(f"   Deadline Risk: {r.get('deadline_risk', 'N/A')} | "
+              f"Days Left: {r.get('days_remaining', 'N/A')} | "
+              f"Competition: {r.get('competition_intensity', 'N/A')}")
         print(f"   Platform: {r['platform']} | Deadline: {r['deadline']}")
         print(f"   Best Domain: {r.get('best_matching_domain', 'N/A')} | Budget: {r.get('budget', 'N/A')}")
         if r.get('organization'):

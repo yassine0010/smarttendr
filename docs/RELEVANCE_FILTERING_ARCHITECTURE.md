@@ -20,11 +20,12 @@ scoring formula that combines:
 
 ```
 backend/relevance/
-├── __init__.py           # Package exports
-├── company_profile.py    # CompanyProfile dataclass + default profile
-├── similarity.py         # SimilarityEngine (SBERT + cosine computation)
-├── filter_engine.py      # RelevanceFilter, FilterResult, FilterDecision
-└── calibration.py        # ThresholdCalibrator + CalibrationReport
+├── __init__.py              # Package exports
+├── company_profile.py       # CompanyProfile dataclass + default profile
+├── similarity.py            # SimilarityEngine (SBERT + cosine computation)
+├── filter_engine.py         # RelevanceFilter, FilterResult, FilterDecision
+├── calibration.py           # ThresholdCalibrator + CalibrationReport
+└── strategic_evaluator.py   # StrategicEvaluator, win probability, deadline risk
 ```
 
 ---
@@ -268,6 +269,36 @@ FilterResult (structured output)
     ├── semantic_similarity, skill_overlap, domain_similarity
     ├── best_matching_domain, matched_skills, missing_skills
     └── computation_time_ms
+    │
+    ▼  (additive layer — does NOT modify scores above)
+StrategicEvaluator.evaluate(tender, filter_result)
+    │
+    ├── strategic_relevance_score (0–100%)
+    │     = 40% final_score + 20% skill_coverage + 15% domain_weight
+    │       + 15% budget_compatibility + 10% geographic_match
+    │
+    ├── win_probability (0–100%)
+    │     base = strategic_relevance_score / 100
+    │     +0.05 if skill_overlap > 0.75
+    │     +0.05 if domain_similarity > 0.75
+    │     -0.10 if missing_skills > 40%
+    │     -0.10 if budget outside range
+    │     -0.10 if deadline_risk == HIGH
+    │
+    ├── deadline_risk (LOW / MEDIUM / HIGH)
+    │     days_remaining = (deadline - today).days
+    │     complexity = num_required + num_missing skills
+    │     HIGH if days < 7 AND complexity > 8
+    │     MEDIUM if days < 14 OR complexity > 10
+    │
+    ├── difficulty_level (LOW / MEDIUM / HIGH)
+    │     LOW if final_score > 0.75
+    │     MEDIUM if 0.55–0.75
+    │     HIGH if < 0.55
+    │
+    └── competition_intensity (LOW / MEDIUM / HIGH)
+          HIGH if international + generic domain
+          LOW if niche domain + local market
 ```
 
 ---
@@ -289,6 +320,26 @@ FilterResult (structured output)
     "matched_skills": ["python", "aws", "docker"],
     "missing_skills": ["sap"],
     "computation_time_ms": 12.34
+}
+```
+
+### Strategic Result (StrategicResult.to_dict())
+```json
+{
+    "strategic_relevance_score": 83,
+    "win_probability": 88,
+    "deadline_risk": "LOW",
+    "days_remaining": 15,
+    "complexity_score": 5,
+    "difficulty_level": "MEDIUM",
+    "competition_intensity": "MEDIUM",
+    "score_breakdown": {
+        "final_score_component": 0.288,
+        "skill_coverage_component": 0.15,
+        "domain_weight_component": 0.1425,
+        "budget_compat_component": 0.15,
+        "geographic_match_component": 0.10
+    }
 }
 ```
 
@@ -315,11 +366,12 @@ FilterResult (structured output)
 
 | Feature | Status |
 |---------|--------|
+| Strategic evaluation layer (win prob, deadline risk) | ✅ `strategic_evaluator.py` |
 | PostgreSQL storage | ❌ Not implemented |
 | Alert / notification system | ❌ Not implemented |
 | Real-time streaming | ❌ Not implemented |
 | GPU acceleration | ❌ Not implemented (CPU only) |
-| Fine-tuned SBERT model | ❌ Uses pretrained all-MiniLM-L6-v2 |
+| Fine-tuned SBERT model | ❌ Uses pretrained paraphrase-multilingual-MiniLM-L12-v2 |
 | User feedback loop | ❌ Not implemented |
 | REST API endpoint | ❌ Not implemented |
 | A/B testing of thresholds | ❌ Not implemented |
