@@ -1,0 +1,29 @@
+# SmartTender AI — Python Dependencies
+# Install: pip install -r requirements.txt
+# Then: python -m spacy download en_core_web_sm && python -m spacy download fr_core_news_sm
+
+# === Web Framework ===
+fastapi>=0.110.0
+uvicorn>=0.27.0
+
+# === Frontend ===
+streamlit>=1.30.0
+plotly>=5.18.0
+
+# === Data ===
+pandas>=2.1.0
+scikit-learn>=1.3.0
+
+# === NLP ===
+spacy>=3.7.0
+sentence-transformers>=2.3.0
+langdetect>=1.0.9
+
+# === Scraping ===
+requests>=2.31.0
+httpx>=0.26.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# === Logging ===
+structlog>=23.2.0
