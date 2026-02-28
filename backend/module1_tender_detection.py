@@ -6,10 +6,11 @@ Features:
   Platforms: SAM.gov, TED Europa, UNGM, TUNEPS, Contracts Finder UK
 - Keyword extraction (spaCy + TF-IDF)
 - Semantic embedding (Sentence-BERT)
-- Relevance scoring (cosine similarity)
-- Alert system (threshold-based notification)
+- Relevance filtering (cosine similarity + skill overlap + domain match)
+- Three-tier decision: RELEVANT / LOW_RELEVANCE / IRRELEVANT
 
 Architecture: See docs/SCRAPING_ARCHITECTURE.md for full design.
+              See docs/RELEVANCE_FILTERING_ARCHITECTURE.md for scoring.
 
 Author: SmartTender AI Team
 Date: 2025-2026
@@ -31,6 +32,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 from scraping.pipeline import ScrapingPipeline
 from scraping.base import NormalizedTender
 from nlp.keyword_extraction import KeywordExtractor, ExtractionResult
+from relevance.filter_engine import RelevanceFilter, FilterResult, FilterDecision, FilterBatchResult
+from relevance.company_profile import CompanyProfile
 
 # ================================================================
 # LOAD NLP MODELS
@@ -46,38 +49,18 @@ except OSError:
     subprocess.run(["python", "-m", "spacy", "download", "en_core_web_sm"])
     nlp = spacy.load("en_core_web_sm")
 
-# Load Sentence-BERT for semantic embeddings
-sbert_model = SentenceTransformer("all-MiniLM-L6-v2")
-
 # Initialize keyword extraction pipeline (reuses the same spaCy model)
 keyword_extractor = KeywordExtractor(model_name="en_core_web_sm", top_keywords=30)
+
+# Initialize relevance filter (loads SBERT model + precomputes profile embeddings)
+print("[Module 1] Loading relevance filter (SBERT + company profile)...")
+relevance_filter = RelevanceFilter(
+    profile=CompanyProfile.default(),
+    relevant_threshold=0.65,
+    low_relevance_threshold=0.40,
+    model_name="all-MiniLM-L6-v2",
+)
 print("[Module 1] Models loaded successfully!")
-
-
-# ================================================================
-# DEFAULT COMPANY PROFILE
-# ================================================================
-DEFAULT_COMPANY_PROFILE = {
-    "name": "Inetum Tunisie",
-    "description": """
-    Inetum is a leading IT services company specializing in
-    digital transformation, cloud computing, ERP implementation,
-    AI/ML solutions, custom software development, cybersecurity,
-    and IT consulting. We operate across Europe, Africa, and the
-    Middle East with expertise in Python, Java, AWS, Azure, SAP,
-    Odoo, data analytics, and agile project management.
-    """,
-    "domains": [
-        "IT Services", "Cloud Computing", "ERP",
-        "AI/Machine Learning", "Cybersecurity",
-        "Digital Transformation", "Software Development"
-    ],
-    "key_skills": [
-        "Python", "Java", "AWS", "Azure", "Docker", "Kubernetes",
-        "SAP", "Odoo", "NLP", "Machine Learning", "Agile/Scrum",
-        "REST API", "Microservices", "PostgreSQL", "React"
-    ]
-}
 
 
 # ================================================================
@@ -88,30 +71,42 @@ class TenderDetector:
     Smart Tender Detection Engine
 
     This class provides functionality to:
-    1. Extract keywords from tender documents
-    2. Compute relevance scores between tenders and company profile
-    3. Rank and filter tenders by relevance
+    1. Extract keywords from tender documents (spaCy NER + TF-IDF)
+    2. Compute relevance using the production RelevanceFilter
+       (SBERT cosine similarity + skill overlap + domain match)
+    3. Classify tenders: RELEVANT / LOW_RELEVANCE / IRRELEVANT
+    4. Rank and filter tenders by final hybrid score
     """
 
     def __init__(
         self,
-        company_profile: Optional[Dict] = None,
-        threshold: float = 0.3
+        company_profile: Optional[CompanyProfile] = None,
+        threshold: float = 0.65,
+        low_threshold: float = 0.40,
     ):
         """
         Initialize the TenderDetector.
 
         Args:
-            company_profile: Dictionary containing company information
-            threshold: Minimum relevance score (0-1) to consider relevant
+            company_profile: CompanyProfile object (uses default if None)
+            threshold:       Score >= this → RELEVANT
+            low_threshold:   Score >= this (< threshold) → LOW_RELEVANCE
         """
-        self.company = company_profile or DEFAULT_COMPANY_PROFILE
         self.threshold = threshold
+        self.low_threshold = low_threshold
 
-        # Pre-compute company profile embedding for efficiency
-        self.company_embedding = sbert_model.encode(
-            [self.company["description"]]
-        )
+        # Use the module-level relevance filter, or create a custom one
+        if company_profile is not None:
+            self._filter = RelevanceFilter(
+                profile=company_profile,
+                relevant_threshold=threshold,
+                low_relevance_threshold=low_threshold,
+            )
+        else:
+            self._filter = relevance_filter
+            self._filter.update_thresholds(
+                relevant=threshold, low_relevance=low_threshold
+            )
 
     # ============================================================
     # KEYWORD EXTRACTION (powered by NLP pipeline)
@@ -142,69 +137,24 @@ class TenderDetector:
         )
 
     # ============================================================
-    # RELEVANCE SCORING
+    # RELEVANCE SCORING (powered by RelevanceFilter)
     # ============================================================
-    def compute_relevance(self, tender: Dict) -> float:
+    def compute_relevance(self, tender: Dict) -> FilterResult:
         """
         Compute relevance score between tender and company profile.
 
-        The score is a weighted combination of:
-        - Semantic similarity (45%): SBERT embeddings cosine similarity
-        - Skill overlap (35%): Jaccard-like skill matching
-        - Domain match (20%): Category alignment
+        Uses the production RelevanceFilter which computes:
+        - Semantic similarity (45%): SBERT cosine similarity
+        - Skill overlap (35%): Jaccard-style skill matching
+        - Domain match (20%): Multi-domain vector alignment
 
         Args:
             tender: Dictionary containing tender information
 
         Returns:
-            Relevance score as percentage (0-100)
+            FilterResult with scores, decision, and diagnostics.
         """
-        # 1. Semantic Similarity (Sentence-BERT)
-        tender_text = f"{tender.get('title', '')}. {tender.get('description', '')}"
-        tender_embedding = sbert_model.encode([tender_text])
-        semantic_sim = cosine_similarity(
-            tender_embedding,
-            self.company_embedding
-        )[0][0]
-
-        # 2. Skill Overlap Score
-        tender_skills = set([
-            s.lower().strip()
-            for s in tender.get("required_skills", [])
-        ])
-        company_skills = set([
-            s.lower().strip()
-            for s in self.company["key_skills"]
-        ])
-
-        if tender_skills:
-            skill_overlap = len(tender_skills & company_skills) / len(tender_skills)
-        else:
-            skill_overlap = 0.5  # Neutral if no skills specified
-
-        # 3. Domain Match Score
-        tender_category = tender.get("category", "").lower()
-        domain_match = any(
-            domain.lower() in tender_category or
-            tender_category in domain.lower()
-            for domain in self.company["domains"]
-        )
-        domain_score = 1.0 if domain_match else 0.3
-
-        # 4. Weighted Final Score
-        weights = {
-            "semantic": 0.45,
-            "skills": 0.35,
-            "domain": 0.20
-        }
-
-        final_score = (
-            weights["semantic"] * semantic_sim +
-            weights["skills"] * skill_overlap +
-            weights["domain"] * domain_score
-        )
-
-        return round(float(final_score * 100), 2)
+        return self._filter.filter_tender(tender)
 
     # ============================================================
     # ANALYZE TENDERS
@@ -218,7 +168,7 @@ class TenderDetector:
 
         Pipeline per tender:
             1. NLP keyword extraction (spaCy NER + TF-IDF)
-            2. Relevance scoring (SBERT + skill overlap + domain match)
+            2. Relevance filtering (SBERT cosine + skill overlap + domain)
             3. Merge extracted fields into structured result
 
         Args:
@@ -230,9 +180,6 @@ class TenderDetector:
         results = []
 
         for tender in tenders:
-            # Compute relevance score
-            score = self.compute_relevance(tender)
-
             # Run NLP keyword extraction pipeline
             existing_meta = {
                 "budget": tender.get("budget"),
@@ -246,6 +193,17 @@ class TenderDetector:
                 existing_metadata=existing_meta,
             )
 
+            # Enrich tender with NLP-detected fields for the relevance filter
+            enriched = {
+                **tender,
+                "detected_domain": extraction.domain,
+                "detected_skills": [s["name"] for s in extraction.skills],
+                "detected_certifications": extraction.certifications,
+            }
+
+            # Compute relevance using the production filter
+            filter_result: FilterResult = self.compute_relevance(enriched)
+
             # Build result object merging relevance + extraction
             result = {
                 "id": tender.get("id", ""),
@@ -256,8 +214,16 @@ class TenderDetector:
                 "budget_amount": extraction.budget_amount,
                 "budget_currency": extraction.budget_currency,
                 "category": tender.get("category", "Unknown"),
-                "relevance_score": score,
-                "is_relevant": score >= (self.threshold * 100),
+                # Relevance filter results
+                "relevance_score": round(filter_result.final_score * 100, 2),
+                "is_relevant": filter_result.decision == FilterDecision.RELEVANT,
+                "decision": str(filter_result.decision),
+                "semantic_similarity": filter_result.semantic_similarity,
+                "skill_overlap": filter_result.skill_overlap,
+                "domain_similarity": filter_result.domain_similarity,
+                "best_matching_domain": filter_result.best_matching_domain,
+                "matched_skills": filter_result.matched_skills,
+                "missing_skills": filter_result.missing_skills,
                 # NLP extraction results
                 "nlp_extraction": extraction.to_dict(),
                 "detected_domain": extraction.domain,
@@ -367,8 +333,8 @@ if __name__ == "__main__":
     import json
     from pathlib import Path
 
-    # Initialize detector
-    detector = TenderDetector(threshold=0.3)
+    # Initialize detector with production thresholds
+    detector = TenderDetector(threshold=0.65, low_threshold=0.40)
 
     # ----------------------------------------------------------
     # Step 1: Run the multi-tier scraping pipeline
@@ -403,39 +369,54 @@ if __name__ == "__main__":
             }]
 
     # ----------------------------------------------------------
-    # Step 3: Analyze & rank tenders with NLP engine
+    # Step 3: Analyze & rank tenders with NLP + relevance engine
     # ----------------------------------------------------------
-    print(f"\n[Step 2] Analyzing {len(tenders)} tenders with NLP engine...")
+    print(f"\n[Step 2] Analyzing {len(tenders)} tenders (NLP + SBERT cosine similarity)...")
     results = detector.analyze_tenders(tenders)
 
     # ----------------------------------------------------------
-    # Step 4: Display results
+    # Step 4: Display results with three-tier classification
     # ----------------------------------------------------------
     print("\n" + "=" * 70)
     print(" SMARTTENDER AI - TENDER DETECTION RESULTS")
     print("=" * 70)
 
+    decision_icons = {
+        "RELEVANT": "✅",
+        "LOW_RELEVANCE": "🔶",
+        "IRRELEVANT": "⬜",
+    }
+
     for r in results:
-        status = "RELEVANT" if r["is_relevant"] else "LOW MATCH"
-        icon = "✅" if r["is_relevant"] else "⬜"
+        decision = r.get("decision", "IRRELEVANT")
+        icon = decision_icons.get(decision, "⬜")
 
         print(f"\n{icon} {r['title'][:65]}")
-        print(f"   Score: {r['relevance_score']}% | Status: {status}")
+        print(f"   Score: {r['relevance_score']}% | Decision: {decision}")
+        print(f"   Semantic: {r.get('semantic_similarity', 0):.3f} | "
+              f"Skills: {r.get('skill_overlap', 0):.3f} | "
+              f"Domain: {r.get('domain_similarity', 0):.3f}")
         print(f"   Platform: {r['platform']} | Deadline: {r['deadline']}")
-        print(f"   Domain: {r.get('detected_domain', 'N/A')} | Budget: {r.get('budget', 'N/A')}")
+        print(f"   Best Domain: {r.get('best_matching_domain', 'N/A')} | Budget: {r.get('budget', 'N/A')}")
         if r.get('organization'):
             print(f"   Organization: {r['organization']}")
-        if r.get('detected_skills'):
-            print(f"   Skills: {', '.join(r['detected_skills'][:8])}")
+        if r.get('matched_skills'):
+            print(f"   ✓ Matched Skills: {', '.join(r['matched_skills'][:8])}")
+        if r.get('missing_skills'):
+            print(f"   ✗ Missing Skills: {', '.join(r['missing_skills'][:5])}")
         if r.get('detected_certifications'):
             print(f"   Certifications: {', '.join(r['detected_certifications'][:5])}")
         if r.get('top_keywords'):
             print(f"   Keywords: {', '.join(r['top_keywords'][:6])}")
 
     print("\n" + "=" * 70)
-    relevant_count = sum(1 for r in results if r["is_relevant"])
-    print(f" Summary: {relevant_count}/{len(results)} tenders are relevant "
-          f"(threshold: {detector.threshold * 100:.0f}%)")
+    relevant_count = sum(1 for r in results if r.get("decision") == "RELEVANT")
+    low_count = sum(1 for r in results if r.get("decision") == "LOW_RELEVANCE")
+    irrelevant_count = sum(1 for r in results if r.get("decision") == "IRRELEVANT")
+    print(f" Summary: {relevant_count} RELEVANT | {low_count} LOW_RELEVANCE | "
+          f"{irrelevant_count} IRRELEVANT  (total: {len(results)})")
+    print(f" Thresholds: RELEVANT ≥ {detector.threshold:.0%} | "
+          f"LOW_RELEVANCE ≥ {detector.low_threshold:.0%}")
     print("=" * 70)
 
     # ----------------------------------------------------------
