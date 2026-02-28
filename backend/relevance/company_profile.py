@@ -127,19 +127,42 @@ DEFAULT_PROFILE_DATA: Dict = {
         },
     },
     "skills": [
-        "Python", "Java", "JavaScript", "TypeScript", "SQL",
-        "AWS", "Azure", "Docker", "Kubernetes", "Terraform",
-        "SAP", "Odoo", "Salesforce",
-        "React", "Angular", "Node.js", "Django", "FastAPI", ".NET", "Spring",
-        "PostgreSQL", "MySQL", "MongoDB", "Redis",
-        "TensorFlow", "PyTorch", "NLP", "Machine Learning",
-        "CI/CD", "DevOps", "Agile/Scrum",
-        "REST API", "Microservices", "GraphQL",
-        "Cybersecurity", "Penetration Testing", "ISO 27001",
+        # Programming languages
+        "Python", "Java", "JavaScript", "TypeScript", "SQL", "C#", "PHP", "Go", "Rust", "Scala",
+        # Cloud & infrastructure
+        "AWS", "Azure", "Docker", "Kubernetes", "Terraform", "GCP", "Cloud", "VMware", "Linux",
+        # ERP & business platforms
+        "SAP", "Odoo", "Salesforce", "ServiceNow", "Dynamics 365", "Oracle", "Workday", "Power BI",
+        "SharePoint", "Jira", "Confluence",
+        # Web & mobile frameworks
+        "React", "Angular", "Node.js", "Django", "FastAPI", ".NET", "Spring", "Vue.js", "Flutter",
+        # Databases
+        "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch", "SQL Server",
+        # AI & data
+        "TensorFlow", "PyTorch", "NLP", "Machine Learning", "Data Analytics", "Power BI",
+        "Business Intelligence", "Data Warehouse", "ETL",
+        # DevOps & methodology
+        "CI/CD", "DevOps", "Agile/Scrum", "ITIL", "Scrum",
+        # Architecture & integration
+        "REST API", "Microservices", "GraphQL", "API", "System Integration", "SOA",
+        "Web Services", "Middleware",
+        # Security
+        "Cybersecurity", "Penetration Testing", "ISO 27001", "SIEM", "Firewall",
+        "Identity Management", "Access Control",
+        # Broad IT service terms (match tender language)
+        "Software", "Software Development", "Web Development", "Mobile Development",
+        "Application Development", "IT Services", "IT Support", "IT Infrastructure",
+        "Digital Transformation", "E-Government", "ERP", "CRM",
+        "Database", "Network", "Hosting", "Migration", "Maintenance",
+        "Consulting", "Project Management", "Service Desk", "Helpdesk",
+        "Data Management", "Information System", "Platform",
+        "Integration", "Automation", "Monitoring", "Analytics",
+        "Website", "Portal", "Intranet",
     ],
     "certifications": [
         "AWS Certified", "Azure Certified", "PMP", "ITIL",
-        "ISO 27001", "ISO 9001", "CISSP", "GDPR",
+        "ISO 27001", "ISO 9001", "CISSP", "GDPR", "SOC 2",
+        "CMMI", "TOGAF", "Prince2", "Scrum Master",
     ],
 }
 

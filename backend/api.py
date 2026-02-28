@@ -52,7 +52,7 @@ def _get_detector():
     global _detector
     if _detector is None:
         from module1_tender_detection import TenderDetector
-        _detector = TenderDetector(threshold=0.65, low_threshold=0.40)
+        _detector = TenderDetector(threshold=0.55, low_threshold=0.30)
     return _detector
 
 

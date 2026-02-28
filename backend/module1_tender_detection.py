@@ -216,9 +216,41 @@ class TenderDetector:
             )
 
             # Build result object merging relevance + extraction + strategic
+            score_pct = round(filter_result.final_score * 100, 2)
+            decision_str = str(filter_result.decision)
+
+            # Generate human-readable score explanation (text)
+            score_explanation = self._explain_score(
+                score_pct=score_pct,
+                decision=decision_str,
+                semantic=filter_result.semantic_similarity,
+                skill=filter_result.skill_overlap,
+                domain=filter_result.domain_similarity,
+                best_domain=filter_result.best_matching_domain,
+                matched_skills=filter_result.matched_skills,
+                missing_skills=filter_result.missing_skills,
+                strategic=strategic_result,
+                tender=tender,
+            )
+
+            # Generate structured explanation dict for rich UI
+            score_explanation_detail = self._explain_score_structured(
+                score_pct=score_pct,
+                decision=decision_str,
+                semantic=filter_result.semantic_similarity,
+                skill=filter_result.skill_overlap,
+                domain=filter_result.domain_similarity,
+                best_domain=filter_result.best_matching_domain,
+                matched_skills=filter_result.matched_skills,
+                missing_skills=filter_result.missing_skills,
+                strategic=strategic_result,
+                tender=tender,
+            )
+
             result = {
                 "id": tender.get("id", ""),
                 "title": tender.get("title", ""),
+                "url": tender.get("url", "") or tender.get("source_url", ""),
                 "platform": tender.get("platform", "Unknown"),
                 "deadline": extraction.deadline or tender.get("deadline", "N/A"),
                 "budget": extraction.budget or tender.get("budget", "N/A"),
@@ -226,9 +258,11 @@ class TenderDetector:
                 "budget_currency": extraction.budget_currency,
                 "category": tender.get("category", "Unknown"),
                 # Relevance filter results
-                "relevance_score": round(filter_result.final_score * 100, 2),
+                "relevance_score": score_pct,
                 "is_relevant": filter_result.decision == FilterDecision.RELEVANT,
-                "decision": str(filter_result.decision),
+                "decision": decision_str,
+                "score_explanation": score_explanation,
+                "score_explanation_detail": score_explanation_detail,
                 "semantic_similarity": filter_result.semantic_similarity,
                 "skill_overlap": filter_result.skill_overlap,
                 "domain_similarity": filter_result.domain_similarity,
@@ -262,6 +296,342 @@ class TenderDetector:
         results.sort(key=lambda x: x["relevance_score"], reverse=True)
 
         return results
+
+    # ============================================================
+    # SCORE EXPLANATION GENERATOR
+    # ============================================================
+
+    @staticmethod
+    def _explain_score(
+        score_pct: float,
+        decision: str,
+        semantic: float,
+        skill: float,
+        domain: float,
+        best_domain: str,
+        matched_skills: list,
+        missing_skills: list,
+        strategic,
+        tender: dict,
+    ) -> str:
+        """
+        Generate a human-readable explanation of why a tender
+        received its relevance score and decision.
+        """
+        parts = []
+
+        # ── Overall verdict ──
+        if decision == "RELEVANT":
+            parts.append(
+                f"✅ This tender scores {score_pct:.0f}% and is classified as RELEVANT — "
+                f"it closely matches Inetum's expertise."
+            )
+        elif decision == "LOW_RELEVANCE":
+            parts.append(
+                f"⚠️ This tender scores {score_pct:.0f}% and is classified as LOW RELEVANCE — "
+                f"there is partial alignment with Inetum's capabilities but gaps remain."
+            )
+        else:
+            parts.append(
+                f"❌ This tender scores {score_pct:.0f}% and is classified as IRRELEVANT — "
+                f"it falls outside Inetum's core service areas."
+            )
+
+        # ── Domain alignment ──
+        if domain > 0.50:
+            parts.append(
+                f"📌 Strong domain match: the tender aligns well with our "
+                f"'{best_domain}' practice (domain similarity {domain:.0%})."
+            )
+        elif domain > 0.35:
+            parts.append(
+                f"📌 Moderate domain match: the tender partially aligns with our "
+                f"'{best_domain}' practice (domain similarity {domain:.0%})."
+            )
+        else:
+            parts.append(
+                f"📌 Weak domain match: the tender's subject area does not clearly "
+                f"match any of our core domains (best match: '{best_domain}' at {domain:.0%})."
+            )
+
+        # ── Semantic similarity ──
+        if semantic > 0.45:
+            parts.append(
+                f"🔤 The tender description is semantically close to our company profile "
+                f"(similarity {semantic:.0%})."
+            )
+        elif semantic > 0.30:
+            parts.append(
+                f"🔤 Moderate semantic similarity ({semantic:.0%}) — the tender uses "
+                f"some terminology related to our services."
+            )
+        else:
+            parts.append(
+                f"🔤 Low semantic similarity ({semantic:.0%}) — the tender's language "
+                f"is distant from our service descriptions. This may be due to a "
+                f"non-English tender text or a different industry focus."
+            )
+
+        # ── Skills ──
+        if matched_skills:
+            parts.append(
+                f"🛠️ Matched skills: {', '.join(matched_skills[:8])}. "
+                f"We have direct expertise in {len(matched_skills)} "
+                f"of the required technologies."
+            )
+        elif skill >= 0.6:
+            parts.append(
+                "🛠️ No specific skills were extracted from the tender text, "
+                "but IT-related keywords suggest this is within our domain."
+            )
+        else:
+            parts.append(
+                "🛠️ No matching skills detected. The tender either requires "
+                "skills outside our portfolio or lacks detailed technical requirements."
+            )
+
+        if missing_skills:
+            parts.append(
+                f"⚠️ Missing skills: {', '.join(missing_skills[:5])}. "
+                f"These would need to be addressed through partnerships or hiring."
+            )
+
+        # ── Strategic factors ──
+        risk = str(strategic.deadline_risk)
+        win = strategic.win_probability
+        difficulty = str(strategic.difficulty_level)
+
+        if win >= 70:
+            parts.append(f"🏆 High win probability ({win}%) — strong competitive position.")
+        elif win >= 50:
+            parts.append(f"🏆 Moderate win probability ({win}%) — competitive but not guaranteed.")
+        else:
+            parts.append(f"🏆 Low win probability ({win}%) — significant competitive challenges.")
+
+        if risk == "HIGH":
+            days = strategic.days_remaining
+            parts.append(
+                f"⏰ HIGH deadline risk — only {days} days remaining. "
+                f"Immediate action required if pursuing."
+            )
+        elif risk == "MEDIUM":
+            parts.append(
+                f"⏰ Medium deadline risk — sufficient time to prepare a quality bid."
+            )
+
+        if difficulty in ("HIGH", "VERY_HIGH"):
+            parts.append(
+                f"📊 {difficulty.replace('_', ' ').title()} difficulty level — "
+                f"consider resource allocation carefully."
+            )
+
+        # ── Recommendation ──
+        if decision == "RELEVANT" and win >= 60:
+            parts.append("💡 Recommendation: PURSUE — strong fit and good win probability.")
+        elif decision == "RELEVANT":
+            parts.append("💡 Recommendation: REVIEW — good fit but assess competitive landscape.")
+        elif decision == "LOW_RELEVANCE" and score_pct >= 50:
+            parts.append(
+                "💡 Recommendation: REVIEW with caution — partial fit, evaluate "
+                "if gaps can be filled through partnerships."
+            )
+        elif decision == "LOW_RELEVANCE":
+            parts.append("💡 Recommendation: LOW PRIORITY — limited alignment with our strengths.")
+        else:
+            parts.append("💡 Recommendation: SKIP — this tender is not a good match.")
+
+        return " ".join(parts)
+
+    # ============================================================
+    # STRUCTURED SCORE EXPLANATION (for rich UI)
+    # ============================================================
+
+    @staticmethod
+    def _explain_score_structured(
+        score_pct: float,
+        decision: str,
+        semantic: float,
+        skill: float,
+        domain: float,
+        best_domain: str,
+        matched_skills: list,
+        missing_skills: list,
+        strategic,
+        tender: dict,
+    ) -> dict:
+        """
+        Return a structured dict for the UI to render a rich,
+        section-by-section explanation card.
+        """
+        # ── Verdict ──
+        if decision == "RELEVANT":
+            verdict = {
+                "icon": "✅",
+                "label": "RELEVANT",
+                "color": "#28a745",
+                "summary": f"This tender scores {score_pct:.0f}% and closely matches Inetum's expertise.",
+            }
+        elif decision == "LOW_RELEVANCE":
+            verdict = {
+                "icon": "⚠️",
+                "label": "LOW RELEVANCE",
+                "color": "#ffc107",
+                "summary": f"This tender scores {score_pct:.0f}% — partial alignment with Inetum's capabilities but gaps remain.",
+            }
+        else:
+            verdict = {
+                "icon": "❌",
+                "label": "IRRELEVANT",
+                "color": "#dc3545",
+                "summary": f"This tender scores {score_pct:.0f}% — it falls outside Inetum's core service areas.",
+            }
+
+        # ── Domain alignment ──
+        if domain > 0.50:
+            domain_info = {
+                "level": "strong",
+                "icon": "🟢",
+                "text": f"Strong domain match with our '{best_domain}' practice.",
+                "value": round(domain, 3),
+                "best_domain": best_domain,
+            }
+        elif domain > 0.35:
+            domain_info = {
+                "level": "moderate",
+                "icon": "🟡",
+                "text": f"Moderate domain match with our '{best_domain}' practice.",
+                "value": round(domain, 3),
+                "best_domain": best_domain,
+            }
+        else:
+            domain_info = {
+                "level": "weak",
+                "icon": "🔴",
+                "text": f"Weak domain match. Best match: '{best_domain}'.",
+                "value": round(domain, 3),
+                "best_domain": best_domain,
+            }
+
+        # ── Semantic similarity ──
+        if semantic > 0.45:
+            semantic_info = {
+                "level": "high",
+                "icon": "🟢",
+                "text": "Tender description is semantically close to our company profile.",
+                "value": round(semantic, 3),
+            }
+        elif semantic > 0.30:
+            semantic_info = {
+                "level": "moderate",
+                "icon": "🟡",
+                "text": "Moderate semantic similarity — some terminology related to our services.",
+                "value": round(semantic, 3),
+            }
+        else:
+            semantic_info = {
+                "level": "low",
+                "icon": "🔴",
+                "text": "Low semantic similarity — may be non-English or different industry.",
+                "value": round(semantic, 3),
+            }
+
+        # ── Skills ──
+        if matched_skills:
+            skill_info = {
+                "level": "matched",
+                "icon": "🟢",
+                "text": f"Direct expertise in {len(matched_skills)} required technologies.",
+                "matched": list(matched_skills[:10]),
+                "missing": list(missing_skills[:8]) if missing_skills else [],
+                "value": round(skill, 3),
+            }
+        elif skill >= 0.6:
+            skill_info = {
+                "level": "inferred",
+                "icon": "🟡",
+                "text": "No specific skills extracted, but IT-related keywords suggest our domain.",
+                "matched": [],
+                "missing": list(missing_skills[:8]) if missing_skills else [],
+                "value": round(skill, 3),
+            }
+        else:
+            skill_info = {
+                "level": "none",
+                "icon": "🔴",
+                "text": "No matching skills detected — outside our portfolio or lacks requirements.",
+                "matched": [],
+                "missing": list(missing_skills[:8]) if missing_skills else [],
+                "value": round(skill, 3),
+            }
+
+        # ── Strategic factors ──
+        win = strategic.win_probability
+        risk = str(strategic.deadline_risk)
+        difficulty = str(strategic.difficulty_level)
+        competition = str(strategic.competition_intensity)
+        days = strategic.days_remaining
+
+        if win >= 70:
+            win_info = {"level": "high", "icon": "🟢", "text": f"Strong competitive position ({win}%)."}
+        elif win >= 50:
+            win_info = {"level": "moderate", "icon": "🟡", "text": f"Competitive but not guaranteed ({win}%)."}
+        else:
+            win_info = {"level": "low", "icon": "🔴", "text": f"Significant competitive challenges ({win}%)."}
+
+        strategic_info = {
+            "win_probability": win,
+            "win_info": win_info,
+            "deadline_risk": risk,
+            "days_remaining": days,
+            "difficulty": difficulty,
+            "competition": competition,
+        }
+
+        # ── Recommendation ──
+        if decision == "RELEVANT" and win >= 60:
+            recommendation = {
+                "action": "PURSUE",
+                "icon": "🚀",
+                "color": "#28a745",
+                "text": "Strong fit and good win probability. Recommended to pursue.",
+            }
+        elif decision == "RELEVANT":
+            recommendation = {
+                "action": "REVIEW",
+                "icon": "👀",
+                "color": "#17a2b8",
+                "text": "Good fit — assess competitive landscape before committing.",
+            }
+        elif decision == "LOW_RELEVANCE" and score_pct >= 50:
+            recommendation = {
+                "action": "REVIEW WITH CAUTION",
+                "icon": "⚖️",
+                "color": "#ffc107",
+                "text": "Partial fit — evaluate if gaps can be filled through partnerships.",
+            }
+        elif decision == "LOW_RELEVANCE":
+            recommendation = {
+                "action": "LOW PRIORITY",
+                "icon": "📋",
+                "color": "#6c757d",
+                "text": "Limited alignment with our strengths.",
+            }
+        else:
+            recommendation = {
+                "action": "SKIP",
+                "icon": "⏭️",
+                "color": "#dc3545",
+                "text": "This tender is not a good match for Inetum.",
+            }
+
+        return {
+            "verdict": verdict,
+            "domain": domain_info,
+            "semantic": semantic_info,
+            "skills": skill_info,
+            "strategic": strategic_info,
+            "recommendation": recommendation,
+        }
 
     # ============================================================
     # WEB SCRAPING (production pipeline)
